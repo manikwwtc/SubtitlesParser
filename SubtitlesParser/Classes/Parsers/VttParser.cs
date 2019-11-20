@@ -78,6 +78,12 @@ namespace SubtitlesParser.Classes.Parsers
                                 item.StartTime = startTc;
                                 item.EndTime = endTc;
                             }
+
+                            success = TryParseSubtitleMetaData(line, out string metaData);
+                            if(success)
+                            {
+                                item.MetaData = metaData;
+                            }
                         }
                         else
                         {
@@ -99,6 +105,63 @@ namespace SubtitlesParser.Classes.Parsers
             {
                 throw new FormatException("Parsing as VTT returned no VTT part.");
             }
+        }
+
+        /// <summary>
+        /// This line tries to extract the metadata from the time codes line
+        /// VTT files can contain location metadata which is used to display the subtitles
+        /// at specific locations on the display of the devices.
+        /// 
+        /// 00:00:02.377 --> 00:00:06.423 align:middle line:79% position:50% size:85%
+        /// 
+        /// </summary>
+        /// <param name="line"></param>
+        /// <param name="metaData"></param>
+        /// <returns></returns>
+        private bool TryParseSubtitleMetaData(string line, out string metaData)
+        {
+            var parts = line.Split(_delimiters, StringSplitOptions.None);
+            metaData = null;
+            if (parts.Length != 2)
+            {
+                // this is not a timecode line
+                return false;
+            }
+            else
+            {
+                metaData = ParseVttMetaData(parts[1]);
+                return true;
+            }
+        }
+
+        private string ParseVttMetaData(string v)
+        {
+            string metaData = string.Empty;
+            var match = Regex.Match(v, "[0-9]+:[0-9]+:[0-9]+[,\\.][0-9]+");
+            if (match.Success)
+            {
+                metaData = match.Value;
+            }
+            else
+            {
+                match = Regex.Match(v, "[0-9]+:[0-9]+[,\\.][0-9]+");
+                if (match.Success)
+                {
+                    metaData = "00:" + match.Value;
+                }
+            }
+
+            // Remove the matched time part from the whole string and you'll get the metadata
+            if (!string.IsNullOrEmpty(metaData))
+            {
+                metaData = v.Replace(metaData, "").Trim();
+
+                // Made sure here no empty space is left if metadata is not present
+                if ((string.IsNullOrWhiteSpace(metaData)) || (string.IsNullOrEmpty(metaData)))
+                    metaData = null;
+            }
+
+            return metaData;
         }
 
         /// <summary>
@@ -193,9 +256,9 @@ namespace SubtitlesParser.Classes.Parsers
                 {
                     var nbOfMs = (int)result.TotalMilliseconds;
                     return nbOfMs;
-                } 
+                }
             }
-            
+
             return -1;
         }
     }
